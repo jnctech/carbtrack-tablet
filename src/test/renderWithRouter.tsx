@@ -32,6 +32,11 @@ export function renderWithRouter(node: ReactNode, opts: Options = {}) {
     path: "/search",
     component: () => <>{node}</>,
   });
+  const recipeLibraryRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/recipes",
+    component: () => <>{node}</>,
+  });
   const recipeNewRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/recipes/new",
@@ -49,6 +54,7 @@ export function renderWithRouter(node: ReactNode, opts: Options = {}) {
     routeTree: rootRoute.addChildren([
       indexRoute,
       searchRoute,
+      recipeLibraryRoute,
       recipeNewRoute,
       recipeEditRoute,
     ]),
