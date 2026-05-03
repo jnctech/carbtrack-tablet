@@ -31,13 +31,17 @@ export const IngredientViewSchema = z.object({
 
 export const AttachmentViewSchema = z.object({
   id: z.number().int().positive(),
-  recipe_id: z.number().int().positive(),
+  // recipe_id and created_at are returned by the attachments router's
+  // serializer but NOT by carbtrack-au's recipes router's _attachment_view
+  // (which is what RecipeDetail.attachments[] uses). Optional here so a
+  // post-upload refetch of the recipe doesn't trip the schema check.
+  recipe_id: z.number().int().positive().optional(),
   kind: z.string(),
   filename: z.string(),
   mime_type: z.string().nullable().optional(),
   caption: z.string().nullable().optional(),
   sort_order: z.number().int(),
-  created_at: z.string(),
+  created_at: z.string().optional(),
   url: z.string(),
   thumb_url: z.string(),
 });

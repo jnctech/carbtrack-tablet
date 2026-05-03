@@ -62,7 +62,7 @@ export function AttachmentGallery({
   const sorted = [...attachments].sort(
     (a, b) =>
       a.sort_order - b.sort_order ||
-      a.created_at.localeCompare(b.created_at),
+      (a.created_at ?? "").localeCompare(b.created_at ?? ""),
   );
 
   const handleFiles = async (files: FileList | null) => {
@@ -147,6 +147,7 @@ export function AttachmentGallery({
         {sorted.map((att, idx) => (
           <AttachmentTile
             key={att.id}
+            recipeId={recipeId}
             att={att}
             isFirst={idx === 0}
             isLast={idx === sorted.length - 1}
@@ -187,6 +188,7 @@ export function AttachmentGallery({
 }
 
 interface TileProps {
+  recipeId: number;
   att: AttachmentView;
   isFirst: boolean;
   isLast: boolean;
@@ -195,6 +197,7 @@ interface TileProps {
 }
 
 function AttachmentTile({
+  recipeId,
   att,
   isFirst,
   isLast,
@@ -223,7 +226,7 @@ function AttachmentTile({
 
   const captionMutation = useMutation({
     mutationFn: (next: string) =>
-      patchAttachment(att.recipe_id, att.id, {
+      patchAttachment(recipeId, att.id, {
         caption: next === "" ? null : next,
       }),
     onSuccess: (updated) => {
@@ -246,11 +249,11 @@ function AttachmentTile({
 
   const swapMutation = useMutation({
     mutationFn: async (other: AttachmentView) => {
-      await patchAttachment(att.recipe_id, att.id, {
+      await patchAttachment(recipeId, att.id, {
         sort_order: other.sort_order,
       });
       try {
-        await patchAttachment(other.recipe_id, other.id, {
+        await patchAttachment(recipeId, other.id, {
           sort_order: att.sort_order,
         });
       } catch (err) {
@@ -258,7 +261,7 @@ function AttachmentTile({
         // sort_order on the server. If the rollback also fails, surface a
         // louder message so the user knows to refresh.
         try {
-          await patchAttachment(att.recipe_id, att.id, {
+          await patchAttachment(recipeId, att.id, {
             sort_order: att.sort_order,
           });
         } catch {
@@ -282,7 +285,7 @@ function AttachmentTile({
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => deleteAttachment(att.recipe_id, att.id),
+    mutationFn: () => deleteAttachment(recipeId, att.id),
     onSuccess: () => {
       setActionError(null);
       onChanged();
