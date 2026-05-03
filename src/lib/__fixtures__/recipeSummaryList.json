@@ -1,0 +1,22 @@
+[
+  {
+    "id": 42,
+    "name": "Sunday pancakes",
+    "servings": 4,
+    "pinned": true,
+    "active": true,
+    "ingredient_count": 3,
+    "thumb_url": "/attachments/501/thumb.webp",
+    "updated_at": "2026-05-02T19:02:11.000000Z"
+  },
+  {
+    "id": 17,
+    "name": "Apple slice",
+    "servings": 1,
+    "pinned": false,
+    "active": true,
+    "ingredient_count": 2,
+    "thumb_url": null,
+    "updated_at": "2026-04-30T10:00:00.000000Z"
+  }
+]

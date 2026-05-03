@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { FoodSchema, FoodSearchResultSchema } from "./schemas";
+import recipeDetail from "./__fixtures__/recipeDetail.json";
+import recipeSummaryList from "./__fixtures__/recipeSummaryList.json";
+import {
+  FoodSchema,
+  FoodSearchResultSchema,
+  RecipeDetailSchema,
+  RecipeSummaryListSchema,
+} from "./schemas";
 
 const valid = {
   id: 1,
@@ -50,5 +57,30 @@ describe("FoodSearchResultSchema", () => {
     expect(FoodSearchResultSchema.safeParse({ items: [valid] }).success).toBe(
       false,
     );
+  });
+});
+
+describe("recipes-router fixture regression", () => {
+  it("RecipeDetailSchema parses the pinned fixture", () => {
+    const parsed = RecipeDetailSchema.parse(recipeDetail);
+    expect(parsed.id).toBe(42);
+    expect(parsed.attachments).toHaveLength(2);
+    expect(parsed.ingredients).toHaveLength(3);
+  });
+
+  // Canary for ADR-001 follow-up: carbtrack-au's recipes router emits
+  // _attachment_view WITHOUT recipe_id/created_at. If a future fixture refresh
+  // accidentally adds those fields, the regression coverage that motivated
+  // this fixture (Phase 4 hotfix #26) silently disappears.
+  it("recipes-router attachment shape omits recipe_id and created_at", () => {
+    const att = recipeDetail.attachments[0] as Record<string, unknown>;
+    expect("recipe_id" in att).toBe(false);
+    expect("created_at" in att).toBe(false);
+  });
+
+  it("RecipeSummaryListSchema parses the listing fixture", () => {
+    const parsed = RecipeSummaryListSchema.parse(recipeSummaryList);
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]?.pinned).toBe(true);
   });
 });
