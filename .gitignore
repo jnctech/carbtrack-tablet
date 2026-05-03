@@ -1,0 +1,19 @@
+node_modules
+dist
+dist-ssr
+coverage
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.tsbuildinfo
+
+# Internal, non-shippable docs (synced out-of-band)
+docs/internal/
+
+# PWA dev artifacts
+dev-dist
