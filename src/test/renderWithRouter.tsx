@@ -17,7 +17,7 @@ interface Options {
 
 /**
  * Render a component as the leaf of a real TanStack Router tree, with a
- * fresh QueryClient per test. Routes match the production tree so that
+ * fresh QueryClient per test. Routes mirror the production tree so that
  * <Link to="/search"> typechecks and resolves.
  */
 export function renderWithRouter(node: ReactNode, opts: Options = {}) {
@@ -38,8 +38,20 @@ export function renderWithRouter(node: ReactNode, opts: Options = {}) {
     validateSearch: z.object({ seed: z.number().int().positive().optional() }),
     component: () => <>{node}</>,
   });
+  const recipeEditRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/recipes/$recipeId",
+    parseParams: (params) => ({ recipeId: Number(params.recipeId) }),
+    stringifyParams: (params) => ({ recipeId: String(params.recipeId) }),
+    component: () => <>{node}</>,
+  });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([indexRoute, searchRoute, recipeNewRoute]),
+    routeTree: rootRoute.addChildren([
+      indexRoute,
+      searchRoute,
+      recipeNewRoute,
+      recipeEditRoute,
+    ]),
     history: createMemoryHistory({ initialEntries: [opts.initialPath ?? "/"] }),
   });
   const client = new QueryClient({

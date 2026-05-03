@@ -7,7 +7,7 @@ import {
 import { z } from "zod";
 import { App } from "./App";
 import { SearchScreen } from "./routes/search";
-import { RecipeNewStub } from "./routes/recipeNewStub";
+import { RecipeEditScreen, RecipeNewScreen } from "./routes/recipeRoutes";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -29,10 +29,23 @@ const recipeNewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/recipes/new",
   validateSearch: z.object({ seed: z.number().int().positive().optional() }),
-  component: RecipeNewStub,
+  component: RecipeNewScreen,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, searchRoute, recipeNewRoute]);
+const recipeEditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/recipes/$recipeId",
+  parseParams: (params) => ({ recipeId: Number(params.recipeId) }),
+  stringifyParams: (params) => ({ recipeId: String(params.recipeId) }),
+  component: RecipeEditScreen,
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  searchRoute,
+  recipeNewRoute,
+  recipeEditRoute,
+]);
 
 export const router = createRouter({ routeTree });
 
