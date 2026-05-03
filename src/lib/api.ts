@@ -70,7 +70,14 @@ export async function apiFetch<T>(
     throw err;
   }
   if (!res.ok) {
-    const body = await res.text();
+    // Body read can throw if the stream is aborted between headers and body —
+    // fall back to the status alone so callers always get the meaningful code.
+    let body: unknown = "";
+    try {
+      body = await res.text();
+    } catch {
+      body = `<failed to read response body>`;
+    }
     throw new ApiError(
       `${res.status} ${res.statusText}`,
       res.status,

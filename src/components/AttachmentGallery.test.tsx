@@ -222,7 +222,9 @@ describe("AttachmentGallery", () => {
   });
 
   it("delete is skipped when user cancels confirm", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const confirmSpy = vi
+      .spyOn(globalThis, "confirm")
+      .mockReturnValue(false);
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     const user = userEvent.setup();
@@ -233,6 +235,78 @@ describe("AttachmentGallery", () => {
     expect(confirmSpy).toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+
+  it("attempts a compensating PATCH when the second swap call fails", async () => {
+    const calls: { url: string; body: unknown }[] = [];
+    const fetchMock = vi.fn(
+      async (url: RequestInfo | URL, init?: RequestInit) => {
+        let u: string;
+        if (typeof url === "string") u = url;
+        else if (url instanceof URL) u = url.toString();
+        else u = url.url;
+        const body = JSON.parse(init?.body as string) as { sort_order: number };
+        calls.push({ url: u, body });
+        // 1st call: PATCH /attachments/1 sort_order:1 → ok
+        // 2nd call: PATCH /attachments/2 sort_order:0 → fail
+        // 3rd call: rollback PATCH /attachments/1 sort_order:0 → ok
+        if (calls.length === 2) {
+          return new Response("nope", { status: 500, statusText: "err" });
+        }
+        return new Response(JSON.stringify(attachment()), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const onChanged = vi.fn();
+    const user = userEvent.setup();
+    renderGallery({
+      attachments: [
+        attachment({ id: 1, sort_order: 0 }),
+        attachment({ id: 2, sort_order: 1 }),
+      ],
+      onChanged,
+    });
+
+    const downButtons = screen.getAllByRole("button", {
+      name: /move photo later/i,
+    });
+    if (!downButtons[0]) throw new Error("expected down button on first tile");
+    await user.click(downButtons[0]);
+
+    // Three calls: forward, forward (fails), rollback.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(calls[0]?.body).toEqual({ sort_order: 1 });
+    expect(calls[1]?.body).toEqual({ sort_order: 0 });
+    expect(calls[2]?.body).toEqual({ sort_order: 0 }); // rollback restores att.sort_order
+    // User-facing reorder error AND a refetch trigger so the UI re-syncs.
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Reorder failed/i);
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("falls back to an inline message when confirm() is unavailable", async () => {
+    const original = globalThis.confirm;
+    Object.defineProperty(globalThis, "confirm", {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+    const user = userEvent.setup();
+    renderGallery({ attachments: [attachment({ id: 1 })] });
+
+    await user.click(screen.getByRole("button", { name: /delete photo/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Confirm dialogs aren't available/i,
+    );
+
+    Object.defineProperty(globalThis, "confirm", {
+      configurable: true,
+      writable: true,
+      value: original,
+    });
   });
 
   it("surfaces upload server errors inline and lets the user dismiss", async () => {

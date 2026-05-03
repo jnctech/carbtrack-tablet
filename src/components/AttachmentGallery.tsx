@@ -26,7 +26,30 @@ interface UploadState {
   error?: string;
 }
 
-const ACCEPT_ATTR = Array.from(ALLOWED_MIME.keys()).join(",");
+const ACCEPT_ATTR: string = [...ALLOWED_MIME.keys()].join(",");
+
+function formatUploadError(err: unknown): string {
+  if (err instanceof ApiError) {
+    return `Upload failed (${err.status || err.kind}): ${err.message}`;
+  }
+  if (err instanceof Error) return err.message;
+  return "Upload failed";
+}
+
+function formatActionError(err: unknown, label: string): string {
+  if (err instanceof ApiError) {
+    return `${label} failed (${err.status || err.kind}): ${err.message}`;
+  }
+  if (err instanceof Error) return `${label} failed: ${err.message}`;
+  return `${label} failed`;
+}
+
+function newNonce(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random()}`;
+}
 
 export function AttachmentGallery({
   recipeId,
@@ -43,48 +66,50 @@ export function AttachmentGallery({
   );
 
   const handleFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    // Sequential — keeps server load gentle and the per-file error UX simple.
-    for (const file of Array.from(files)) {
-      const nonce =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random()}`;
-      const rejection = describeUploadRejection(file);
-      if (rejection) {
+    try {
+      if (!files || files.length === 0) return;
+      // Sequential — keeps server load gentle and the per-file error UX
+      // simple. In-batch counter so each file gets a unique sort_order;
+      // uploads.length here would be the stale render-time closure value.
+      let queuedThisBatch = 0;
+      for (const file of Array.from(files)) {
+        const nonce = newNonce();
+        const rejection = describeUploadRejection(file);
+        if (rejection) {
+          setUploads((u) => [
+            ...u,
+            { nonce, fileName: file.name, status: "error", error: rejection },
+          ]);
+          continue;
+        }
         setUploads((u) => [
           ...u,
-          { nonce, fileName: file.name, status: "error", error: rejection },
+          { nonce, fileName: file.name, status: "uploading" },
         ]);
-        continue;
+        try {
+          await uploadAttachment(recipeId, file, {
+            sortOrder: attachments.length + queuedThisBatch,
+          });
+          queuedThisBatch += 1;
+          setUploads((u) => u.filter((entry) => entry.nonce !== nonce));
+          onChanged();
+        } catch (err: unknown) {
+          const message = formatUploadError(err);
+          setUploads((u) =>
+            u.map((entry) =>
+              entry.nonce === nonce
+                ? { ...entry, status: "error", error: message }
+                : entry,
+            ),
+          );
+        }
       }
-      setUploads((u) => [
-        ...u,
-        { nonce, fileName: file.name, status: "uploading" },
-      ]);
-      try {
-        await uploadAttachment(recipeId, file, {
-          sortOrder: attachments.length + uploads.length,
-        });
-        setUploads((u) => u.filter((entry) => entry.nonce !== nonce));
-        onChanged();
-      } catch (err: unknown) {
-        const message =
-          err instanceof ApiError
-            ? `Upload failed (${err.status || err.kind}): ${err.message}`
-            : err instanceof Error
-              ? err.message
-              : "Upload failed";
-        setUploads((u) =>
-          u.map((entry) =>
-            entry.nonce === nonce
-              ? { ...entry, status: "error", error: message }
-              : entry,
-          ),
-        );
-      }
+    } finally {
+      // Always reset so the same file can be re-selected after a rejection
+      // or a partial-batch failure (browsers suppress `change` for an
+      // identical selection otherwise).
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const dismissUpload = (nonce: string) =>
@@ -99,8 +124,8 @@ export function AttachmentGallery({
         <h2 id="attachments-heading" className="text-sm font-medium">
           Photos
         </h2>
-        <label className="cursor-pointer rounded-lg border border-border bg-card px-3 py-1.5 text-sm hover:bg-muted/40">
-          + Add photos
+        <label className="cursor-pointer rounded-lg border border-border bg-card px-3 py-2 text-sm hover:bg-muted/40">
+          <span>+ Add photos</span>
           <input
             ref={fileInputRef}
             type="file"
@@ -180,7 +205,10 @@ function AttachmentTile({
   const [caption, setCaption] = useState(att.caption ?? "");
   const debounced = useDebouncedValue(caption, 600);
   const lastSavedRef = useRef(att.caption ?? "");
-  const [error, setError] = useState<string | null>(null);
+  // Caption errors and action errors (reorder/delete) live in separate slots
+  // so a successful reorder doesn't visually swallow a failed caption save.
+  const [captionError, setCaptionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Reset local state if the server-side caption changes (e.g. another tab
   // edited it and a refetch landed). Compare against last-saved so a
@@ -200,11 +228,11 @@ function AttachmentTile({
       }),
     onSuccess: (updated) => {
       lastSavedRef.current = updated.caption ?? "";
-      setError(null);
+      setCaptionError(null);
       onChanged();
     },
     onError: (err: unknown) => {
-      setError(err instanceof Error ? err.message : "Save failed");
+      setCaptionError(formatActionError(err, "Caption save"));
     },
   });
 
@@ -221,33 +249,64 @@ function AttachmentTile({
       await patchAttachment(att.recipe_id, att.id, {
         sort_order: other.sort_order,
       });
-      await patchAttachment(other.recipe_id, other.id, {
-        sort_order: att.sort_order,
-      });
+      try {
+        await patchAttachment(other.recipe_id, other.id, {
+          sort_order: att.sort_order,
+        });
+      } catch (err) {
+        // Compensating PATCH so two attachments don't end up sharing a
+        // sort_order on the server. If the rollback also fails, surface a
+        // louder message so the user knows to refresh.
+        try {
+          await patchAttachment(att.recipe_id, att.id, {
+            sort_order: att.sort_order,
+          });
+        } catch {
+          throw new Error(
+            "Reorder partially failed and could not be rolled back. Please refresh to see the current order.",
+          );
+        }
+        throw err;
+      }
     },
     onSuccess: () => {
-      setError(null);
+      setActionError(null);
       onChanged();
     },
     onError: (err: unknown) => {
-      setError(err instanceof Error ? err.message : "Reorder failed");
+      setActionError(formatActionError(err, "Reorder"));
+      // Re-sync from the server regardless so the UI matches reality even
+      // when the rollback succeeded.
+      onChanged();
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteAttachment(att.recipe_id, att.id),
     onSuccess: () => {
-      setError(null);
+      setActionError(null);
       onChanged();
     },
     onError: (err: unknown) => {
-      setError(err instanceof Error ? err.message : "Delete failed");
+      setActionError(formatActionError(err, "Delete"));
     },
   });
 
   const confirmDelete = () => {
-    if (typeof window === "undefined") return;
-    if (window.confirm("Delete this photo?")) {
+    const askConfirm =
+      typeof globalThis !== "undefined" && typeof globalThis.confirm === "function"
+        ? globalThis.confirm.bind(globalThis)
+        : null;
+    if (!askConfirm) {
+      // No confirm prompt available (e.g. some embedded webviews). Fall back
+      // to surfacing the action via the action-error slot rather than a
+      // silent no-op so the user gets feedback that the tap registered.
+      setActionError(
+        "Confirm dialogs aren't available here — long-press support coming in a later phase.",
+      );
+      return;
+    }
+    if (askConfirm("Delete this photo?")) {
       deleteMutation.mutate();
     }
   };
@@ -279,9 +338,17 @@ function AttachmentTile({
         value={caption}
         onChange={(e) => setCaption(e.target.value)}
         placeholder="Caption (optional)"
-        className="w-full rounded border border-border bg-background px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-ring"
+        aria-invalid={captionError ? true : undefined}
+        className={`w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring ${
+          captionError ? "border-destructive" : "border-border"
+        }`}
       />
-      <div className="flex items-center justify-between gap-1 text-xs">
+      {captionError && (
+        <p className="text-xs text-destructive" role="alert">
+          {captionError}
+        </p>
+      )}
+      <div className="flex items-center justify-between gap-1 text-sm">
         <div className="flex gap-1">
           <button
             type="button"
@@ -290,7 +357,7 @@ function AttachmentTile({
               neighbours.prev && swapMutation.mutate(neighbours.prev)
             }
             aria-label="Move photo earlier"
-            className="rounded px-2 py-1 text-muted-foreground hover:bg-muted/40 disabled:opacity-30"
+            className="min-h-10 rounded px-3 py-2 text-muted-foreground hover:bg-muted/40 disabled:opacity-30"
           >
             ↑
           </button>
@@ -301,7 +368,7 @@ function AttachmentTile({
               neighbours.next && swapMutation.mutate(neighbours.next)
             }
             aria-label="Move photo later"
-            className="rounded px-2 py-1 text-muted-foreground hover:bg-muted/40 disabled:opacity-30"
+            className="min-h-10 rounded px-3 py-2 text-muted-foreground hover:bg-muted/40 disabled:opacity-30"
           >
             ↓
           </button>
@@ -311,14 +378,14 @@ function AttachmentTile({
           disabled={busy}
           onClick={confirmDelete}
           aria-label="Delete photo"
-          className="rounded px-2 py-1 text-destructive hover:bg-destructive/10 disabled:opacity-30"
+          className="min-h-10 rounded px-3 py-2 text-destructive hover:bg-destructive/10 disabled:opacity-30"
         >
           Delete
         </button>
       </div>
-      {error && (
+      {actionError && (
         <p className="text-xs text-destructive" role="alert">
-          {error}
+          {actionError}
         </p>
       )}
     </li>

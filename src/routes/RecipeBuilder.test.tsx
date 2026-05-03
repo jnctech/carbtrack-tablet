@@ -463,4 +463,38 @@ describe("RecipeBuilder — edit mode", () => {
     });
     expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't load/i);
   });
+
+  it("mounts the AttachmentGallery once the recipe has loaded", async () => {
+    installFetch([
+      {
+        match: (u, init) =>
+          (init?.method ?? "GET") === "GET" && u.endsWith("/recipes/5"),
+        respond: () => jsonResponse(RECIPE_DETAIL),
+      },
+      {
+        match: (u, init) =>
+          init?.method === "POST" && u.endsWith("/recipes/calculate"),
+        respond: () => jsonResponse(CALC_RESULT_100G),
+      },
+    ]);
+    renderWithRouter(<RecipeBuilder mode="edit" recipeId={5} />, {
+      initialPath: "/recipes/5",
+    });
+    expect(
+      await screen.findByTestId("attachment-gallery"),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("RecipeBuilder — gallery is gated on edit mode", () => {
+  it("does not mount the AttachmentGallery in new mode", async () => {
+    installFetch([]);
+    renderWithRouter(<RecipeBuilder mode="new" />, {
+      initialPath: "/recipes/new",
+    });
+    // Heading is the synchronous render anchor — once it appears we know the
+    // builder mounted, so a missing gallery testid is meaningful.
+    await screen.findByRole("heading", { name: /new recipe/i });
+    expect(screen.queryByTestId("attachment-gallery")).not.toBeInTheDocument();
+  });
 });
