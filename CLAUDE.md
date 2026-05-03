@@ -54,3 +54,4 @@ PRs target `jnctech/carbtrack-tablet` branch `develop` — never upstream.
 * `docs/internal/architecture.md` — component tree, API client, Dexie schema, icon registry
 * `docs/CHANGE-REGISTER.md` — CR-YYMMDD-slug entries
 * `docs/ISSUES.md` — ISS-YYMMDD-topic entries
+* `docs/decisions/` — ADRs (sequential ADR-NNN — see ADR-010 for why ADRs are the exception to date-based IDs)
