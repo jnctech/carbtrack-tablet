@@ -60,7 +60,7 @@ multiple CRs land on the same date with similar slugs.
 - Recipe library screen + thumbnail rendering (Phase 5) —
   `hydrateRecipeSummaries` is wired so cache will be warm on arrival.
 
-**Status:** Staged
+**Status:** Deployed (merged 2026-05-03 as `d801125`, PR #21)
 
 ## CR-260503-2-api-cache-search
 **Date:** 2026-05-03
