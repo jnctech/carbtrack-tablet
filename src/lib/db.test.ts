@@ -3,11 +3,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   db,
   getCachedFoodsByQuery,
+  getCachedRecipeSummaries,
   hydrateFoods,
+  hydrateRecipeSummaries,
   type CachedFood,
   type CachedRecipeSummary,
 } from "./db";
-import type { Food } from "./schemas";
+import type { Food, RecipeSummary } from "./schemas";
 
 afterEach(async () => {
   await db.foods.clear();
@@ -90,6 +92,56 @@ describe("hydrateFoods", () => {
     const row = await db.foods.get(1);
     expect(row?.name).toBe("New");
     expect(row?.carbs_per_100g).toBe(6);
+  });
+});
+
+const summary = (
+  overrides: Partial<RecipeSummary> & Pick<RecipeSummary, "id" | "name">,
+): RecipeSummary => ({
+  servings: 1,
+  pinned: false,
+  active: true,
+  ingredient_count: 0,
+  thumb_url: null,
+  updated_at: "2026-05-03T00:00:00Z",
+  ...overrides,
+});
+
+describe("hydrateRecipeSummaries", () => {
+  it("bulk-puts summaries with cached_at stamped", async () => {
+    const before = Date.now();
+    await hydrateRecipeSummaries([
+      summary({ id: 1, name: "Soup", ingredient_count: 4 }),
+      summary({ id: 2, name: "Salad", pinned: true, ingredient_count: 2 }),
+    ]);
+    const rows = await db.recipeSummaries.toArray();
+    expect(rows).toHaveLength(2);
+    const soup = rows.find((r) => r.id === 1);
+    expect(soup?.name).toBe("Soup");
+    expect(soup?.cached_at).toBeGreaterThanOrEqual(before);
+    expect(soup?.thumb_url).toBeNull();
+  });
+
+  it("is a no-op for an empty list", async () => {
+    await hydrateRecipeSummaries([]);
+    expect(await db.recipeSummaries.count()).toBe(0);
+  });
+});
+
+describe("getCachedRecipeSummaries", () => {
+  it("sorts pinned first then alpha by name", async () => {
+    await hydrateRecipeSummaries([
+      summary({ id: 1, name: "Zebra cake" }),
+      summary({ id: 2, name: "Apple pie" }),
+      summary({ id: 3, name: "Banana bread", pinned: true }),
+      summary({ id: 4, name: "Almond muffin", pinned: true }),
+    ]);
+    const out = await getCachedRecipeSummaries();
+    expect(out.map((r) => r.id)).toEqual([4, 3, 2, 1]);
+  });
+
+  it("returns empty when cache is cold", async () => {
+    expect(await getCachedRecipeSummaries()).toEqual([]);
   });
 });
 
