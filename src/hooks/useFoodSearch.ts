@@ -17,11 +17,6 @@ export interface UseFoodSearchResult {
   source: FoodSearchSource;
 }
 
-/**
- * Cache-first food search. useLiveQuery serves Dexie matches instantly;
- * a TanStack Query in parallel calls the API and hydrates the cache,
- * which re-emits through useLiveQuery — no manual setState dance.
- */
 export function useFoodSearch(query: string): UseFoodSearchResult {
   const trimmed = query.trim();
   const enabled = trimmed.length > 0;
@@ -41,7 +36,7 @@ export function useFoodSearch(query: string): UseFoodSearchResult {
 
   useEffect(() => {
     if (apiQuery.data && apiQuery.data.length > 0) {
-      void hydrateFoods(apiQuery.data);
+      hydrateFoods(apiQuery.data).catch(() => {});
     }
   }, [apiQuery.data]);
 
@@ -49,17 +44,16 @@ export function useFoodSearch(query: string): UseFoodSearchResult {
     return { results: [], isLoading: false, error: null, source: "empty" };
   }
 
-  const source: FoodSearchSource =
-    apiQuery.isSuccess && cached.length > 0
-      ? "api"
-      : cached.length > 0
-        ? "cache"
-        : "empty";
-
   return {
     results: cached,
     isLoading: apiQuery.isLoading && cached.length === 0,
-    error: (apiQuery.error as Error | null) ?? null,
-    source,
+    error: apiQuery.error,
+    source: pickSource(apiQuery.isSuccess, cached.length),
   };
+}
+
+function pickSource(apiSucceeded: boolean, cachedCount: number): FoodSearchSource {
+  if (apiSucceeded) return cachedCount > 0 ? "api" : "empty";
+  if (cachedCount > 0) return "cache";
+  return "empty";
 }

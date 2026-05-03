@@ -1,3 +1,4 @@
+import type { ZodType } from "zod";
 import {
   FoodSchema,
   FoodSearchResultSchema,
@@ -36,6 +37,14 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
+function parseOrThrow<T>(schema: ZodType<T>, raw: unknown, path: string): T {
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    throw new ApiError(`Invalid ${path} response shape`, 0, parsed.error.issues);
+  }
+  return parsed.data;
+}
+
 export interface SearchFoodsOpts {
   limit?: number;
   signal?: AbortSignal;
@@ -48,14 +57,9 @@ export async function searchFoods(
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   params.set("limit", String(opts.limit ?? 50));
-  const raw = await apiFetch<unknown>(`/foods?${params.toString()}`, {
-    signal: opts.signal,
-  });
-  const parsed = FoodSearchResultSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new ApiError("Invalid /foods response shape", 0, parsed.error.issues);
-  }
-  return parsed.data;
+  const path = `/foods?${params.toString()}`;
+  const raw = await apiFetch<unknown>(path, { signal: opts.signal });
+  return parseOrThrow(FoodSearchResultSchema, raw, "/foods");
 }
 
 export async function getFood(
@@ -63,13 +67,5 @@ export async function getFood(
   opts: { signal?: AbortSignal } = {},
 ): Promise<Food> {
   const raw = await apiFetch<unknown>(`/foods/${id}`, { signal: opts.signal });
-  const parsed = FoodSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new ApiError(
-      `Invalid /foods/${id} response shape`,
-      0,
-      parsed.error.issues,
-    );
-  }
-  return parsed.data;
+  return parseOrThrow(FoodSchema, raw, `/foods/${id}`);
 }

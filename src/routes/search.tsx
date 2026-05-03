@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { FoodIcon } from "@/components/FoodIcon";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useFoodSearch } from "@/hooks/useFoodSearch";
+import { useFoodSearch, type FoodSearchSource } from "@/hooks/useFoodSearch";
 
 export function SearchScreen() {
   const [query, setQuery] = useState("");
@@ -67,7 +67,7 @@ interface StatusArgs {
   debounced: string;
   isLoading: boolean;
   error: Error | null;
-  source: "empty" | "cache" | "api";
+  source: FoodSearchSource;
   count: number;
 }
 

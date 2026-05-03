@@ -1,10 +1,6 @@
 import Dexie, { type EntityTable } from "dexie";
 import type { Food } from "./schemas";
 
-/**
- * Local Dexie cache. Mirrors carbtrack-au — carb values are never authored
- * locally. Each row carries cached_at so callers can decide on freshness.
- */
 export interface CachedFood {
   id: number;
   name: string;
