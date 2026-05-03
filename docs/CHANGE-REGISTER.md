@@ -74,7 +74,7 @@ ships a typed builder pattern.
 - Long-press confirm fallback for Fire HD when `globalThis.confirm` is
   blocked.
 
-**Status:** Staged
+**Status:** Deployed (merged 2026-05-03 as `de4f0a6`, PR #24)
 
 ## CR-260503-3-phase3-recipe-builder
 **Date:** 2026-05-03
