@@ -1,16 +1,15 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { App } from "./App";
-import { ICON_KEYS } from "./components/foodIconRegistry";
+import { renderWithRouter } from "./test/renderWithRouter";
 
 describe("App", () => {
-  it("renders the heading and one tile per registered icon_key", () => {
-    render(<App />);
+  it("renders the heading and a link to /search", async () => {
+    renderWithRouter(<App />);
     expect(
-      screen.getByRole("heading", { name: /carbtrack tablet/i }),
+      await screen.findByRole("heading", { name: /carbtrack tablet/i }),
     ).toBeInTheDocument();
-    for (const key of ICON_KEYS) {
-      expect(screen.getAllByText(key).length).toBeGreaterThan(0);
-    }
+    const link = screen.getByRole("link", { name: /search ingredients/i });
+    expect(link).toHaveAttribute("href", "/search");
   });
 });

@@ -1,8 +1,10 @@
-/**
- * Thin fetch wrapper for the carbtrack-au backend. Phase 1 ships only the
- * base URL + auth header plumbing — endpoint helpers (foods, recipes,
- * attachments) are added in Phase 2.
- */
+import type { ZodType } from "zod";
+import {
+  FoodSchema,
+  FoodSearchResultSchema,
+  type Food,
+} from "./schemas";
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -33,4 +35,37 @@ export async function apiFetch<T>(
     throw new ApiError(`${res.status} ${res.statusText}`, res.status, body);
   }
   return res.json() as Promise<T>;
+}
+
+function parseOrThrow<T>(schema: ZodType<T>, raw: unknown, path: string): T {
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    throw new ApiError(`Invalid ${path} response shape`, 0, parsed.error.issues);
+  }
+  return parsed.data;
+}
+
+export interface SearchFoodsOpts {
+  limit?: number;
+  signal?: AbortSignal;
+}
+
+export async function searchFoods(
+  q: string,
+  opts: SearchFoodsOpts = {},
+): Promise<Food[]> {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  params.set("limit", String(opts.limit ?? 50));
+  const path = `/foods?${params.toString()}`;
+  const raw = await apiFetch<unknown>(path, { signal: opts.signal });
+  return parseOrThrow(FoodSearchResultSchema, raw, "/foods");
+}
+
+export async function getFood(
+  id: number,
+  opts: { signal?: AbortSignal } = {},
+): Promise<Food> {
+  const raw = await apiFetch<unknown>(`/foods/${id}`, { signal: opts.signal });
+  return parseOrThrow(FoodSchema, raw, `/foods/${id}`);
 }
