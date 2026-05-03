@@ -52,7 +52,12 @@ abort-race fix.
   `_serialise` (attachments router) — separate carbtrack-au PR. Frontend
   remains tolerant via optional zod fields.
 
-**Status:** Staged
+**Browser smoke (dev server, 2026-05-03):** golden path confirmed by
+user — library renders, pinned-first sorting, empty state, link to
+detail screen. Offline / cached-error / abort-race regression checks
+deferred to Fire HD tablet hardware once unboxed.
+
+**Status:** Deployed (merged 2026-05-03 as `01fcc0b`, PR #28)
 
 ## CR-260503-4-phase4-attachments
 **Date:** 2026-05-03
