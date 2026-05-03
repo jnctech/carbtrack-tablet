@@ -13,4 +13,4 @@ the 21 icon_keys live in carbtrack-au prod. Governance scaffold: CLAUDE.md,
 docs/CHANGE-REGISTER.md, docs/ISSUES.md, docs/internal/ (gitignored). CI:
 Gitea inner loop + GitHub outer (quality-gate / scorecard / dependency-review),
 dependabot, sonar-project.properties (`jnctech_carbtrack-tablet`).
-**Status:** Staged
+**Status:** Deployed (merged 2026-05-03 as `c0ad4c1`, PR #1)
