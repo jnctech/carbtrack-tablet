@@ -208,36 +208,51 @@ function AttachmentTile({
   const [caption, setCaption] = useState(att.caption ?? "");
   const debounced = useDebouncedValue(caption, 600);
   const lastSavedRef = useRef(att.caption ?? "");
+  const captionAbortRef = useRef<AbortController | null>(null);
   // Caption errors and action errors (reorder/delete) live in separate slots
   // so a successful reorder doesn't visually swallow a failed caption save.
   const [captionError, setCaptionError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Reset local state if the server-side caption changes (e.g. another tab
-  // edited it and a refetch landed). Compare against last-saved so a
-  // round-trip from this very tile doesn't bounce the input.
-  useEffect(() => {
-    const incoming = att.caption ?? "";
-    if (incoming !== lastSavedRef.current) {
-      lastSavedRef.current = incoming;
-      setCaption(incoming);
-    }
-  }, [att.caption]);
-
   const captionMutation = useMutation({
-    mutationFn: (next: string) =>
-      patchAttachment(recipeId, att.id, {
-        caption: next === "" ? null : next,
-      }),
+    mutationFn: (next: string) => {
+      // Abort any prior in-flight caption PATCH so a slow response from an
+      // earlier keystroke can't land after a faster newer one and resurrect
+      // stale text. AbortController per-call; the rejection lands in onError
+      // where we filter AbortError out.
+      captionAbortRef.current?.abort();
+      const ctrl = new AbortController();
+      captionAbortRef.current = ctrl;
+      return patchAttachment(
+        recipeId,
+        att.id,
+        { caption: next === "" ? null : next },
+        { signal: ctrl.signal },
+      );
+    },
     onSuccess: (updated) => {
       lastSavedRef.current = updated.caption ?? "";
       setCaptionError(null);
       onChanged();
     },
     onError: (err: unknown) => {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setCaptionError(formatActionError(err, "Caption save"));
     },
   });
+
+  // Reset local state if the server-side caption changes (e.g. another tab
+  // edited it and a refetch landed). Compare against last-saved so a
+  // round-trip from this very tile doesn't bounce the input. Skip while a
+  // caption save is in flight so a refetch can't stomp the user's edit.
+  useEffect(() => {
+    if (captionMutation.isPending) return;
+    const incoming = att.caption ?? "";
+    if (incoming !== lastSavedRef.current) {
+      lastSavedRef.current = incoming;
+      setCaption(incoming);
+    }
+  }, [att.caption, captionMutation.isPending]);
 
   useEffect(() => {
     if (debounced === lastSavedRef.current) return;
@@ -296,20 +311,16 @@ function AttachmentTile({
   });
 
   const confirmDelete = () => {
-    const askConfirm =
-      typeof globalThis !== "undefined" && typeof globalThis.confirm === "function"
-        ? globalThis.confirm.bind(globalThis)
-        : null;
-    if (!askConfirm) {
-      // No confirm prompt available (e.g. some embedded webviews). Fall back
-      // to surfacing the action via the action-error slot rather than a
-      // silent no-op so the user gets feedback that the tap registered.
+    if (typeof globalThis.confirm !== "function") {
+      // No confirm prompt available (e.g. some embedded webviews). Surface
+      // via the action-error slot rather than a silent no-op so the user
+      // gets feedback that the tap registered.
       setActionError(
         "Confirm dialogs aren't available here — long-press support coming in a later phase.",
       );
       return;
     }
-    if (askConfirm("Delete this photo?")) {
+    if (globalThis.confirm("Delete this photo?")) {
       deleteMutation.mutate();
     }
   };

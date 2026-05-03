@@ -7,6 +7,7 @@ import {
 import { z } from "zod";
 import { App } from "./App";
 import { SearchScreen } from "./routes/search";
+import { RecipeLibraryScreen } from "./routes/recipeLibrary";
 import { RecipeEditScreen, RecipeNewScreen } from "./routes/recipeRoutes";
 
 const rootRoute = createRootRoute({
@@ -23,6 +24,12 @@ const searchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/search",
   component: SearchScreen,
+});
+
+const recipeLibraryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/recipes",
+  component: RecipeLibraryScreen,
 });
 
 const recipeNewRoute = createRoute({
@@ -43,6 +50,7 @@ const recipeEditRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   searchRoute,
+  recipeLibraryRoute,
   recipeNewRoute,
   recipeEditRoute,
 ]);

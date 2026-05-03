@@ -3,6 +3,57 @@
 Date-based IDs only: `CR-YYMMDD-<branch-slug>`. Append a letter (`-a`, `-b`) if
 multiple CRs land on the same date with similar slugs.
 
+## CR-260503-5-phase5-recipe-library
+**Date:** 2026-05-03
+**Branch:** `feature/phase5-recipe-library`
+**Summary:** Phase 5 — recipe library screen + cache-first hook, schema
+regression fixtures (ADR-001 follow-up), and the bundled Phase 4 caption
+abort-race fix.
+- `src/hooks/useRecipeLibrary.ts` — cache-first hook mirroring
+  `useFoodSearch`. `useLiveQuery(getCachedRecipeSummaries)` for the read,
+  `useQuery(["recipes","list"], listRecipes)` for hydration. Returns
+  `{ rows, isLoading, error, source }`.
+- `src/routes/recipeLibrary.tsx` — `/recipes` screen. Pinned-first,
+  alpha-sorted rows with thumb (or placeholder), name, ingredient count,
+  servings. Empty / live / cached / refresh-failed states surfaced inline.
+  `+ New recipe` CTA → `/recipes/new`.
+- `src/router.tsx` + `src/test/renderWithRouter.tsx` — register
+  `recipeLibraryRoute` in both trees.
+- `src/App.tsx` — index now leads with `My recipes →` alongside the
+  existing search and new-recipe tiles.
+- `src/lib/__fixtures__/recipeDetail.json` + `recipeSummaryList.json`
+  pinned to mirror carbtrack-au's recipes-router shape (no
+  `recipe_id`/`created_at` on attachments). Canary test in
+  `src/lib/schemas.test.ts` asserts that minimal shape is preserved so
+  the Phase 4 PR #26 regression class can't silently come back.
+- `src/components/AttachmentGallery.tsx` — caption PATCH now uses an
+  `AbortController` per call; each new mutate aborts the prior so a slow
+  earlier response can't resurrect stale text. `AbortError` is filtered
+  out of `onError`. Sync-from-server effect skips while a save is
+  in-flight so a refetch can't stomp the user's edit. Closes Phase 4
+  deferred Gaps #3 + #4. New abort-race test added.
+- `/simplify` (3-agent sweep) — applied 1 fix: removed dead defensive
+  scaffolding around `globalThis.confirm` in `confirmDelete`.
+- `silent-failure-hunter` — 2 LOW (consistent with ADR-002), 1 MED
+  (caption sync stuck-pending) — filed as `ISS-260503-caption-sync-stuck-pending`,
+  not blocking.
+- `code-reviewer` — no blocking findings; flagged stale-cache eviction
+  as `ISS-260503-stale-cache-no-eviction` (low, mirrors Phase 2 Gap 2).
+- Tests: **113 passing — 94.35% statements / 86.04% branches / 94.2%
+  functions / 94.96% lines**.
+
+**Deferred (explicit):**
+- Drag-reorder for attachments — per **ADR-006**, Phase 5 should not
+  introduce a per-pair rollback dance for full-list reorder. Waits on a
+  carbtrack-au bulk-reorder endpoint.
+- Stale-cache eviction (foods + recipes) — `ISS-260503-stale-cache-no-eviction`.
+- Caption sync stuck-pending UX — `ISS-260503-caption-sync-stuck-pending`.
+- carbtrack-au alignment of `_attachment_view` (recipes router) with
+  `_serialise` (attachments router) — separate carbtrack-au PR. Frontend
+  remains tolerant via optional zod fields.
+
+**Status:** Staged
+
 ## CR-260503-4-phase4-attachments
 **Date:** 2026-05-03
 **Branch:** `feature/phase4-attachments`

@@ -12,4 +12,10 @@ describe("App", () => {
     const link = screen.getByRole("link", { name: /search ingredients/i });
     expect(link).toHaveAttribute("href", "/search");
   });
+
+  it("links to the recipe library", async () => {
+    renderWithRouter(<App />);
+    const link = await screen.findByRole("link", { name: /my recipes/i });
+    expect(link).toHaveAttribute("href", "/recipes");
+  });
 });

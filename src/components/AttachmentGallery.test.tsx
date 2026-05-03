@@ -154,6 +154,56 @@ describe("AttachmentGallery", () => {
     expect(JSON.parse(init?.body as string)).toEqual({ caption: "after" });
   });
 
+  it("aborts a slow in-flight caption PATCH when a newer edit fires", async () => {
+    const seen: { body: string; aborted: boolean }[] = [];
+    const fetchMock = vi.fn(
+      (_url: RequestInfo | URL, init?: RequestInit) => {
+        const body = (init?.body as string) ?? "";
+        const signal = init?.signal;
+        const entry = { body, aborted: false };
+        seen.push(entry);
+        return new Promise<Response>((resolve, reject) => {
+          // Generous delay so the first call is still in-flight when the
+          // second debounced PATCH fires.
+          const timer = setTimeout(() => {
+            resolve(
+              new Response(
+                JSON.stringify(attachment({ caption: JSON.parse(body).caption })),
+                { status: 200, headers: { "Content-Type": "application/json" } },
+              ),
+            );
+          }, 5000);
+          signal?.addEventListener("abort", () => {
+            clearTimeout(timer);
+            entry.aborted = true;
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        });
+      },
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const user = userEvent.setup();
+    renderGallery({ attachments: [attachment({ caption: null })] });
+
+    const captionInput = screen.getByPlaceholderText(/caption/i);
+    await user.type(captionInput, "first");
+    // Wait through the 600ms debounce so the first PATCH fires.
+    await waitFor(() => expect(seen.length).toBe(1), { timeout: 1500 });
+
+    // First PATCH still in flight (5s mock delay). Append more text — once
+    // the new debounced value lands, the mutation should abort the first
+    // call before it resolves.
+    await user.type(captionInput, "-more");
+    await waitFor(() => expect(seen.length).toBe(2), { timeout: 1500 });
+
+    await waitFor(() => expect(seen[0]?.aborted).toBe(true));
+    expect(JSON.parse(seen[1]?.body ?? "{}")).toEqual({
+      caption: "first-more",
+    });
+    // Aborted call must not surface an error to the user.
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("up/down nudges PATCH both neighbours and disable at boundaries", async () => {
     const fetchMock = vi.fn(
       async (_url: RequestInfo | URL, _init?: RequestInit) =>
