@@ -46,6 +46,13 @@ export default defineConfig(({ mode }) => {
               changeOrigin: true,
               rewrite: (p) => p.replace(/^\/api/, ""),
             },
+            // Attachments are served by the upstream's reverse proxy at
+            // /attachments/* (not under /api). Phase 6 puts the tablet behind
+            // the same NPM, making this same-origin in prod.
+            "/attachments": {
+              target: proxyTarget,
+              changeOrigin: true,
+            },
           },
         }
       : undefined,

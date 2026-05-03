@@ -1,10 +1,13 @@
 import type { ZodType } from "zod";
 import {
+  AttachmentViewSchema,
   CalculateResultSchema,
   FoodSchema,
   FoodSearchResultSchema,
   RecipeDetailSchema,
   RecipeSummaryListSchema,
+  type AttachmentPatch,
+  type AttachmentView,
   type CalculateItem,
   type CalculateResult,
   type Food,
@@ -38,7 +41,13 @@ export async function apiFetch<T>(
   }
   const headers = new Headers(init.headers);
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
-  if (init.body !== undefined && !headers.has("Content-Type")) {
+  // FormData carries its own multipart boundary in the Content-Type the
+  // browser fills in — never override it with application/json.
+  if (
+    init.body !== undefined &&
+    !headers.has("Content-Type") &&
+    !(init.body instanceof FormData)
+  ) {
     headers.set("Content-Type", "application/json");
   }
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -61,7 +70,14 @@ export async function apiFetch<T>(
     throw err;
   }
   if (!res.ok) {
-    const body = await res.text();
+    // Body read can throw if the stream is aborted between headers and body —
+    // fall back to the status alone so callers always get the meaningful code.
+    let body: unknown = "";
+    try {
+      body = await res.text();
+    } catch {
+      body = `<failed to read response body>`;
+    }
     throw new ApiError(
       `${res.status} ${res.statusText}`,
       res.status,
@@ -157,6 +173,66 @@ export async function updateRecipe(
     signal: opts.signal,
   });
   return parseOrThrow(RecipeDetailSchema, raw, `PUT /recipes/${id}`);
+}
+
+export interface UploadAttachmentOpts extends SignalOpt {
+  caption?: string | null;
+  sortOrder?: number;
+}
+
+export async function uploadAttachment(
+  recipeId: number,
+  file: File,
+  opts: UploadAttachmentOpts = {},
+): Promise<AttachmentView> {
+  const form = new FormData();
+  form.append("file", file);
+  if (opts.caption != null) form.append("caption", opts.caption);
+  if (opts.sortOrder !== undefined) {
+    form.append("sort_order", String(opts.sortOrder));
+  }
+  const raw = await apiFetch<unknown>(`/recipes/${recipeId}/attachments`, {
+    method: "POST",
+    body: form,
+    signal: opts.signal,
+  });
+  return parseOrThrow(
+    AttachmentViewSchema,
+    raw,
+    `POST /recipes/${recipeId}/attachments`,
+  );
+}
+
+export async function patchAttachment(
+  recipeId: number,
+  attId: number,
+  payload: AttachmentPatch,
+  opts: SignalOpt = {},
+): Promise<AttachmentView> {
+  const raw = await apiFetch<unknown>(
+    `/recipes/${recipeId}/attachments/${attId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+      signal: opts.signal,
+    },
+  );
+  return parseOrThrow(
+    AttachmentViewSchema,
+    raw,
+    `PATCH /recipes/${recipeId}/attachments/${attId}`,
+  );
+}
+
+export async function deleteAttachment(
+  recipeId: number,
+  attId: number,
+  opts: SignalOpt = {},
+): Promise<{ detail: string; id: number }> {
+  return apiFetch<{ detail: string; id: number }>(
+    `/recipes/${recipeId}/attachments/${attId}`,
+    { method: "DELETE", signal: opts.signal },
+  );
 }
 
 export async function calculateRecipe(
