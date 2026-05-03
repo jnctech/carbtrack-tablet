@@ -17,3 +17,6 @@ docs/internal/
 
 # PWA dev artifacts
 dev-dist
+
+# Claude Code session state (per-machine)
+.claude/

@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Food } from "./schemas";
+import type { Food, RecipeSummary } from "./schemas";
 
 export interface CachedFood {
   id: number;
@@ -58,4 +58,37 @@ export async function getCachedFoodsByQuery(q: string): Promise<CachedFood[]> {
     )
     .toArray();
   return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function toCachedRecipeSummary(
+  r: RecipeSummary,
+  cachedAt: number,
+): CachedRecipeSummary {
+  return {
+    id: r.id,
+    name: r.name,
+    servings: r.servings,
+    pinned: r.pinned,
+    ingredient_count: r.ingredient_count,
+    thumb_url: r.thumb_url,
+    cached_at: cachedAt,
+  };
+}
+
+export async function hydrateRecipeSummaries(
+  rows: RecipeSummary[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  const now = Date.now();
+  await db.recipeSummaries.bulkPut(
+    rows.map((r) => toCachedRecipeSummary(r, now)),
+  );
+}
+
+export async function getCachedRecipeSummaries(): Promise<CachedRecipeSummary[]> {
+  const rows = await db.recipeSummaries.toArray();
+  return rows.sort(
+    (a, b) =>
+      Number(b.pinned) - Number(a.pinned) || a.name.localeCompare(b.name),
+  );
 }
