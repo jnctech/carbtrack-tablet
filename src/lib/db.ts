@@ -87,8 +87,8 @@ export async function hydrateRecipeSummaries(
 
 export async function getCachedRecipeSummaries(): Promise<CachedRecipeSummary[]> {
   const rows = await db.recipeSummaries.toArray();
-  return rows.sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
+  return rows.sort(
+    (a, b) =>
+      Number(b.pinned) - Number(a.pinned) || a.name.localeCompare(b.name),
+  );
 }

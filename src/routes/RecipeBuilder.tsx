@@ -132,13 +132,22 @@ export function RecipeBuilder({ mode, recipeId, seedFoodId }: Readonly<BuilderPr
     name: "ingredients",
   });
 
-  const seedAppliedRef = useRef(false);
+  // Both effects guard with a "did this once" ref so background refetches
+  // (window focus, manual invalidate after save) don't reset the form and
+  // wipe in-progress edits, and so the seed isn't re-appended on remount.
+  const detailLoadedRef = useRef(false);
   useEffect(() => {
-    if (mode === "edit" && detailQuery.data) {
+    if (
+      mode === "edit" &&
+      detailQuery.data &&
+      !detailLoadedRef.current
+    ) {
+      detailLoadedRef.current = true;
       reset(detailToValues(detailQuery.data));
     }
   }, [mode, detailQuery.data, reset]);
 
+  const seedAppliedRef = useRef(false);
   useEffect(() => {
     if (mode === "new" && seedQuery.data && !seedAppliedRef.current) {
       seedAppliedRef.current = true;
@@ -169,12 +178,15 @@ export function RecipeBuilder({ mode, recipeId, seedFoodId }: Readonly<BuilderPr
   const totalCarbs = calcQuery.data
     ? calcQuery.data.total_carbs_g
     : clientCarbTotal(ingredients);
-  const totalSource: "api" | "estimated" | "loading" | "empty" = (() => {
+
+  type TotalSource = "api" | "estimated" | "loading" | "empty";
+  function resolveTotalSource(): TotalSource {
     if (ingredients.length === 0) return "empty";
     if (calcQuery.isError) return "estimated";
     if (calcQuery.isSuccess) return "api";
     return "loading";
-  })();
+  }
+  const totalSource = resolveTotalSource();
 
   const saveMutation = useMutation({
     mutationFn: async (values: FormValues): Promise<RecipeDetail> => {
@@ -225,6 +237,12 @@ export function RecipeBuilder({ mode, recipeId, seedFoodId }: Readonly<BuilderPr
       {detailQuery.error && (
         <p className="text-sm text-destructive" role="alert">
           Couldn't load recipe: {detailQuery.error.message}
+        </p>
+      )}
+
+      {seedQuery.error && (
+        <p className="text-sm text-destructive" role="alert">
+          Couldn't load that ingredient: {seedQuery.error.message}
         </p>
       )}
 
@@ -305,11 +323,8 @@ export function RecipeBuilder({ mode, recipeId, seedFoodId }: Readonly<BuilderPr
 
             {pickerOpen && (
               <IngredientPicker
+                existingFoodIds={fields.map((f) => f.food_id)}
                 onPick={(food) => {
-                  if (fields.some((f) => f.food_id === food.id)) {
-                    setPickerOpen(false);
-                    return;
-                  }
                   append(foodToRow(food, DEFAULT_QTY_G));
                   setPickerOpen(false);
                 }}
@@ -445,13 +460,35 @@ export function RecipeBuilder({ mode, recipeId, seedFoodId }: Readonly<BuilderPr
 }
 
 interface IngredientPickerProps {
+  existingFoodIds: number[];
   onPick: (food: Food) => void;
 }
 
-function IngredientPicker({ onPick }: Readonly<IngredientPickerProps>) {
+function IngredientPicker({
+  existingFoodIds,
+  onPick,
+}: Readonly<IngredientPickerProps>) {
   const [query, setQuery] = useState("");
+  const [pickingId, setPickingId] = useState<number | null>(null);
+  const [pickError, setPickError] = useState<string | null>(null);
   const debounced = useDebouncedValue(query, 250);
   const { results, isLoading } = useFoodSearch(debounced);
+
+  const handlePick = async (foodId: number) => {
+    setPickError(null);
+    setPickingId(foodId);
+    try {
+      // Search results don't include serving_size_g — fetch the full food
+      // so the WeightModal's "1 serving" preset is available for the picked
+      // ingredient just like it is for the seeded one.
+      const full = await getFood(foodId);
+      onPick(full);
+    } catch (err: unknown) {
+      setPickError(err instanceof Error ? err.message : "Couldn't add");
+    } finally {
+      setPickingId(null);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-border bg-card p-3">
@@ -467,31 +504,33 @@ function IngredientPicker({ onPick }: Readonly<IngredientPickerProps>) {
       {isLoading && results.length === 0 && (
         <p className="mt-2 text-xs text-muted-foreground">Searching…</p>
       )}
+      {pickError && (
+        <p className="mt-2 text-xs text-destructive" role="alert">
+          {pickError}
+        </p>
+      )}
       <ul className="mt-2 max-h-64 divide-y divide-border overflow-y-auto">
-        {results.map((row) => (
-          <li key={row.id}>
-            <button
-              type="button"
-              onClick={() =>
-                onPick({
-                  id: row.id,
-                  name: row.name,
-                  carbs_per_100g: row.carbs_per_100g,
-                  icon_key: row.icon_key,
-                  active: row.active,
-                  serving_size_g: null,
-                })
-              }
-              className="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-muted/40"
-            >
-              <FoodIcon iconKey={row.icon_key} className="h-6 w-6" />
-              <span className="flex-1 text-sm">{row.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {row.carbs_per_100g.toFixed(1)} g/100g
-              </span>
-            </button>
-          </li>
-        ))}
+        {results.map((row) => {
+          const alreadyAdded = existingFoodIds.includes(row.id);
+          return (
+            <li key={row.id}>
+              <button
+                type="button"
+                disabled={alreadyAdded || pickingId === row.id}
+                onClick={() => handlePick(row.id)}
+                className="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-muted/40 disabled:opacity-50"
+              >
+                <FoodIcon iconKey={row.icon_key} className="h-6 w-6" />
+                <span className="flex-1 text-sm">{row.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {alreadyAdded
+                    ? "Added"
+                    : `${row.carbs_per_100g.toFixed(1)} g/100g`}
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

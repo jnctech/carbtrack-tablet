@@ -42,14 +42,14 @@ export function WeightModal({
     onConfirm(Math.round(numeric * 10) / 10);
   };
 
-  const hasServing =
-    typeof servingSizeG === "number" && servingSizeG > 0;
-  const presets: { value: number; isServing: boolean }[] = PRESETS.map(
-    (g) => ({ value: g, isServing: false }),
-  );
-  if (hasServing) {
-    presets.push({ value: servingSizeG, isServing: true });
-  }
+  const servingPreset =
+    typeof servingSizeG === "number" && servingSizeG > 0
+      ? [{ value: servingSizeG, isServing: true }]
+      : [];
+  const presets: { value: number; isServing: boolean }[] = [
+    ...PRESETS.map((g) => ({ value: g, isServing: false })),
+    ...servingPreset,
+  ];
 
   return (
     <dialog

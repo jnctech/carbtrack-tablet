@@ -115,7 +115,7 @@ describe("RecipeBuilder — new mode with seed", () => {
           calls.push({
             method: "POST",
             url: u,
-            body: JSON.parse(String(init?.body ?? "[]")),
+            body: JSON.parse((typeof init?.body === "string" ? init.body : "[]")),
           });
           return jsonResponse(CALC_RESULT_100G);
         },
@@ -127,7 +127,7 @@ describe("RecipeBuilder — new mode with seed", () => {
           calls.push({
             method: "POST",
             url: u,
-            body: JSON.parse(String(init?.body ?? "{}")),
+            body: JSON.parse((typeof init?.body === "string" ? init.body : "{}")),
           });
           return jsonResponse(created, 201);
         },
@@ -180,7 +180,7 @@ describe("RecipeBuilder — new mode with seed", () => {
         match: (u, init) =>
           init?.method === "POST" && u.endsWith("/recipes/calculate"),
         respond: (_u, init) => {
-          const items = JSON.parse(String(init?.body ?? "[]")) as {
+          const items = JSON.parse((typeof init?.body === "string" ? init.body : "[]")) as {
             food_id: number;
             quantity_g: number;
           }[];
@@ -272,6 +272,129 @@ describe("RecipeBuilder — new mode with seed", () => {
   });
 });
 
+describe("RecipeBuilder — ingredient picker", () => {
+  const APPLE = {
+    id: 11,
+    name: "Apple",
+    brand: null,
+    category: "fruit",
+    carbs_per_100g: 13.8,
+    sugars_per_100g: null,
+    fibre_per_100g: null,
+    gi_rating: null,
+    serving_size_g: 182,
+    icon_key: "fruit_apple",
+    active: true,
+  };
+
+  it("opens, searches, fetches the full food on pick, and adds the row", async () => {
+    const calls: { method: string; url: string }[] = [];
+    installFetch([
+      {
+        match: (u) => u.endsWith("/foods/10"),
+        respond: () => jsonResponse(SEED_FOOD),
+      },
+      {
+        match: (u, init) =>
+          (init?.method ?? "GET") === "GET" && u.includes("/foods?q="),
+        respond: (u) => {
+          calls.push({ method: "GET", url: u });
+          return jsonResponse([APPLE]);
+        },
+      },
+      {
+        match: (u, init) =>
+          (init?.method ?? "GET") === "GET" && u.endsWith("/foods/11"),
+        respond: (u) => {
+          calls.push({ method: "GET", url: u });
+          return jsonResponse(APPLE);
+        },
+      },
+      {
+        match: (u, init) =>
+          init?.method === "POST" && u.endsWith("/recipes/calculate"),
+        respond: () => jsonResponse(CALC_RESULT_100G),
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderWithRouter(<RecipeBuilder mode="new" seedFoodId={10} />, {
+      initialPath: "/recipes/new",
+    });
+
+    await screen.findByText("Carrot");
+    await user.click(screen.getByRole("button", { name: /\+ add ingredient/i }));
+    await user.type(
+      screen.getByLabelText(/find an ingredient/i),
+      "appl",
+    );
+    const pickButton = await screen.findByRole("button", {
+      name: /apple.*g\/100g/i,
+    });
+    await user.click(pickButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Apple")).toBeInTheDocument();
+    });
+    expect(
+      calls.some((c) => c.url.endsWith("/foods/11")),
+    ).toBe(true);
+  });
+
+  it("disables already-added rows in the picker", async () => {
+    installFetch([
+      {
+        match: (u) => u.endsWith("/foods/10"),
+        respond: () => jsonResponse(SEED_FOOD),
+      },
+      {
+        match: (u, init) =>
+          (init?.method ?? "GET") === "GET" && u.includes("/foods?q="),
+        respond: () => jsonResponse([SEED_FOOD]),
+      },
+      {
+        match: (u, init) =>
+          init?.method === "POST" && u.endsWith("/recipes/calculate"),
+        respond: () => jsonResponse(CALC_RESULT_100G),
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderWithRouter(<RecipeBuilder mode="new" seedFoodId={10} />, {
+      initialPath: "/recipes/new",
+    });
+
+    await screen.findByText("Carrot");
+    await user.click(screen.getByRole("button", { name: /\+ add ingredient/i }));
+    await user.type(
+      screen.getByLabelText(/find an ingredient/i),
+      "carrot",
+    );
+    const pickButton = await screen.findByRole("button", {
+      name: /carrot.*added/i,
+    });
+    expect(pickButton).toBeDisabled();
+  });
+
+  it("shows a seed-load error inline", async () => {
+    installFetch([
+      {
+        match: (u) => u.endsWith("/foods/99"),
+        respond: () =>
+          new Response("nope", { status: 404, statusText: "not found" }),
+      },
+    ]);
+    renderWithRouter(<RecipeBuilder mode="new" seedFoodId={99} />, {
+      initialPath: "/recipes/new",
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText(/couldn't load that ingredient/i),
+      ).toBeInTheDocument();
+    });
+  });
+});
+
 describe("RecipeBuilder — edit mode", () => {
   it("loads the recipe, pre-fills the form, and PUTs on save", async () => {
     const calls: { method: string; url: string; body?: unknown }[] = [];
@@ -293,7 +416,7 @@ describe("RecipeBuilder — edit mode", () => {
           calls.push({
             method: "PUT",
             url: u,
-            body: JSON.parse(String(init?.body ?? "{}")),
+            body: JSON.parse((typeof init?.body === "string" ? init.body : "{}")),
           });
           return jsonResponse({ ...RECIPE_DETAIL, name: "Carrot soup v2" });
         },
