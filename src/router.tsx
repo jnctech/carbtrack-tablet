@@ -4,7 +4,10 @@ import {
   createRouter,
   Outlet,
 } from "@tanstack/react-router";
+import { z } from "zod";
 import { App } from "./App";
+import { SearchScreen } from "./routes/search";
+import { RecipeNewStub } from "./routes/recipeNewStub";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -16,7 +19,20 @@ const indexRoute = createRoute({
   component: App,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute]);
+const searchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/search",
+  component: SearchScreen,
+});
+
+const recipeNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/recipes/new",
+  validateSearch: z.object({ seed: z.number().int().positive().optional() }),
+  component: RecipeNewStub,
+});
+
+const routeTree = rootRoute.addChildren([indexRoute, searchRoute, recipeNewRoute]);
 
 export const router = createRouter({ routeTree });
 
