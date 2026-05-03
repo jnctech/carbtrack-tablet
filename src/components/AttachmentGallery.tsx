@@ -311,20 +311,16 @@ function AttachmentTile({
   });
 
   const confirmDelete = () => {
-    const askConfirm =
-      typeof globalThis !== "undefined" && typeof globalThis.confirm === "function"
-        ? globalThis.confirm.bind(globalThis)
-        : null;
-    if (!askConfirm) {
-      // No confirm prompt available (e.g. some embedded webviews). Fall back
-      // to surfacing the action via the action-error slot rather than a
-      // silent no-op so the user gets feedback that the tap registered.
+    if (typeof globalThis.confirm !== "function") {
+      // No confirm prompt available (e.g. some embedded webviews). Surface
+      // via the action-error slot rather than a silent no-op so the user
+      // gets feedback that the tap registered.
       setActionError(
         "Confirm dialogs aren't available here — long-press support coming in a later phase.",
       );
       return;
     }
-    if (askConfirm("Delete this photo?")) {
+    if (globalThis.confirm("Delete this photo?")) {
       deleteMutation.mutate();
     }
   };
