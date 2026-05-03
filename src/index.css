@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* Zinc theme tokens — shadcn/ui Zinc palette mapped to CSS variables */
+@theme {
+  --color-background: oklch(0.985 0 0);
+  --color-foreground: oklch(0.141 0.005 285.823);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.141 0.005 285.823);
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.141 0.005 285.823);
+  --color-primary: oklch(0.21 0.006 285.885);
+  --color-primary-foreground: oklch(0.985 0 0);
+  --color-secondary: oklch(0.967 0.001 286.375);
+  --color-secondary-foreground: oklch(0.21 0.006 285.885);
+  --color-muted: oklch(0.967 0.001 286.375);
+  --color-muted-foreground: oklch(0.552 0.016 285.938);
+  --color-accent: oklch(0.967 0.001 286.375);
+  --color-accent-foreground: oklch(0.21 0.006 285.885);
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-border: oklch(0.92 0.004 286.32);
+  --color-input: oklch(0.92 0.004 286.32);
+  --color-ring: oklch(0.705 0.015 286.067);
+
+  --radius-sm: calc(0.625rem - 4px);
+  --radius-md: calc(0.625rem - 2px);
+  --radius-lg: 0.625rem;
+  --radius-xl: calc(0.625rem + 4px);
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-background: oklch(0.141 0.005 285.823);
+    --color-foreground: oklch(0.985 0 0);
+    --color-card: oklch(0.21 0.006 285.885);
+    --color-card-foreground: oklch(0.985 0 0);
+    --color-primary: oklch(0.92 0.004 286.32);
+    --color-primary-foreground: oklch(0.21 0.006 285.885);
+    --color-muted: oklch(0.274 0.006 286.033);
+    --color-muted-foreground: oklch(0.705 0.015 286.067);
+    --color-border: oklch(1 0 0 / 10%);
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
