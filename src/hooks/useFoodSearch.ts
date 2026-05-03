@@ -36,7 +36,11 @@ export function useFoodSearch(query: string): UseFoodSearchResult {
 
   useEffect(() => {
     if (apiQuery.data && apiQuery.data.length > 0) {
-      hydrateFoods(apiQuery.data).catch(() => {});
+      // Best-effort cache write. IDB failures (quota, private mode) shouldn't
+      // break search; data is already in TanStack Query state.
+      hydrateFoods(apiQuery.data).catch((err: unknown) => {
+        console.warn("[useFoodSearch] hydrateFoods failed", err);
+      });
     }
   }, [apiQuery.data]);
 

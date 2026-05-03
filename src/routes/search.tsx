@@ -73,7 +73,8 @@ interface StatusArgs {
 
 function renderStatus({ debounced, isLoading, error, source, count }: StatusArgs) {
   if (debounced.trim() === "") return "Start typing to search.";
-  if (error) return `Error: ${error.message}`;
+  if (error && count === 0) return `Error: ${error.message}`;
+  if (error) return `${count} matches (cached — couldn't refresh)`;
   if (isLoading) return "Searching…";
   if (count === 0) return "No matches.";
   return source === "api" ? `${count} matches (live)` : `${count} matches (cached)`;
