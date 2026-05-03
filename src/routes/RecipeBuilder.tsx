@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useForm, useFieldArray, useWatch, Controller } from "react-hook-form";
+import { AttachmentGallery } from "@/components/AttachmentGallery";
 import { FoodIcon } from "@/components/FoodIcon";
 import { WeightModal } from "@/components/WeightModal";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -416,6 +417,20 @@ export function RecipeBuilder({ mode, recipeId, seedFoodId }: Readonly<BuilderPr
               )}
             </p>
           </section>
+
+          {mode === "edit" &&
+            typeof recipeId === "number" &&
+            detailQuery.data && (
+              <AttachmentGallery
+                recipeId={recipeId}
+                attachments={detailQuery.data.attachments}
+                onChanged={() =>
+                  void queryClient.invalidateQueries({
+                    queryKey: ["recipes", "detail", recipeId],
+                  })
+                }
+              />
+            )}
 
           {submitError && (
             <p className="text-sm text-destructive" role="alert">

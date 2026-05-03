@@ -31,13 +31,20 @@ export const IngredientViewSchema = z.object({
 
 export const AttachmentViewSchema = z.object({
   id: z.number().int().positive(),
+  recipe_id: z.number().int().positive(),
   kind: z.string(),
   filename: z.string(),
   mime_type: z.string().nullable().optional(),
   caption: z.string().nullable().optional(),
   sort_order: z.number().int(),
+  created_at: z.string(),
   url: z.string(),
   thumb_url: z.string(),
+});
+
+export const AttachmentPatchSchema = z.object({
+  caption: z.string().nullable().optional(),
+  sort_order: z.number().int().optional(),
 });
 
 export const RecipeSummarySchema = z.object({
@@ -100,6 +107,7 @@ export const CalculateItemSchema = z.object({
 
 export type IngredientView = z.infer<typeof IngredientViewSchema>;
 export type AttachmentView = z.infer<typeof AttachmentViewSchema>;
+export type AttachmentPatch = z.infer<typeof AttachmentPatchSchema>;
 export type RecipeSummary = z.infer<typeof RecipeSummarySchema>;
 export type RecipeDetail = z.infer<typeof RecipeDetailSchema>;
 export type CalculateResult = z.infer<typeof CalculateResultSchema>;
