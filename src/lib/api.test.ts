@@ -122,6 +122,23 @@ describe("apiFetch", () => {
     );
   });
 
+  it("does not override Content-Type when body is FormData", async () => {
+    const { apiFetch } = await import("./api");
+    let captured: RequestInit | undefined;
+    globalThis.fetch = vi.fn(async (_url, init?: RequestInit) => {
+      captured = init;
+      return new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+    const form = new FormData();
+    form.append("file", new Blob(["hi"]), "hi.txt");
+    await apiFetch("/x", { method: "POST", body: form });
+    // Browser fills in multipart boundary itself — apiFetch must not preempt it.
+    expect(new Headers(captured?.headers).get("Content-Type")).toBeNull();
+  });
+
   it("returns undefined for 204 responses", async () => {
     const { apiFetch } = await import("./api");
     globalThis.fetch = vi.fn(
@@ -290,6 +307,124 @@ describe("recipe helpers", () => {
       name: "ApiError",
       kind: "schema",
       status: 0,
+    });
+  });
+});
+
+describe("attachment helpers", () => {
+  const ATTACHMENT = {
+    id: 7,
+    recipe_id: 5,
+    kind: "photo",
+    filename: "abc.jpg",
+    mime_type: "image/jpeg",
+    caption: null,
+    sort_order: 0,
+    created_at: "2026-05-03T00:00:00Z",
+    url: "/attachments/5/abc.jpg",
+    thumb_url: "/attachments/thumbs/5/abc.webp",
+  };
+
+  it("uploadAttachment posts FormData with file + sort_order", async () => {
+    const { uploadAttachment } = await import("./api");
+    let captured: { url?: string; init?: RequestInit } = {};
+    globalThis.fetch = vi.fn(async (url, init?: RequestInit) => {
+      captured = { url: String(url), init };
+      return new Response(JSON.stringify(ATTACHMENT), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const file = new File([new Uint8Array(128)], "x.jpg", {
+      type: "image/jpeg",
+    });
+    const out = await uploadAttachment(5, file, {
+      sortOrder: 2,
+      caption: "yum",
+    });
+
+    expect(captured.url).toBe("https://example.test/recipes/5/attachments");
+    expect(captured.init?.method).toBe("POST");
+    expect(captured.init?.body).toBeInstanceOf(FormData);
+    const form = captured.init?.body as FormData;
+    expect(form.get("sort_order")).toBe("2");
+    expect(form.get("caption")).toBe("yum");
+    expect(form.get("file")).toBeInstanceOf(File);
+    expect(out.id).toBe(7);
+  });
+
+  it("uploadAttachment omits caption when not provided", async () => {
+    const { uploadAttachment } = await import("./api");
+    let body: FormData | undefined;
+    globalThis.fetch = vi.fn(async (_url, init?: RequestInit) => {
+      body = init?.body as FormData;
+      return new Response(JSON.stringify(ATTACHMENT), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+    const file = new File([new Uint8Array(8)], "x.jpg", {
+      type: "image/jpeg",
+    });
+    await uploadAttachment(5, file);
+    expect(body?.has("caption")).toBe(false);
+    expect(body?.has("sort_order")).toBe(false);
+  });
+
+  it("patchAttachment PATCHes JSON body and parses returned attachment", async () => {
+    const { patchAttachment } = await import("./api");
+    let captured: { url?: string; init?: RequestInit } = {};
+    globalThis.fetch = vi.fn(async (url, init?: RequestInit) => {
+      captured = { url: String(url), init };
+      return new Response(
+        JSON.stringify({ ...ATTACHMENT, caption: "edited" }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }) as typeof fetch;
+    const out = await patchAttachment(5, 7, { caption: "edited" });
+    expect(captured.url).toBe("https://example.test/recipes/5/attachments/7");
+    expect(captured.init?.method).toBe("PATCH");
+    expect(JSON.parse(captured.init?.body as string)).toEqual({
+      caption: "edited",
+    });
+    expect(out.caption).toBe("edited");
+  });
+
+  it("deleteAttachment DELETEs and returns ack", async () => {
+    const { deleteAttachment } = await import("./api");
+    let captured: { url?: string; init?: RequestInit } = {};
+    globalThis.fetch = vi.fn(async (url, init?: RequestInit) => {
+      captured = { url: String(url), init };
+      return new Response(
+        JSON.stringify({ detail: "Attachment deleted", id: 7 }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    const out = await deleteAttachment(5, 7);
+    expect(captured.url).toBe("https://example.test/recipes/5/attachments/7");
+    expect(captured.init?.method).toBe("DELETE");
+    expect(out).toEqual({ detail: "Attachment deleted", id: 7 });
+  });
+
+  it("uploadAttachment surfaces 415 from server as ApiError", async () => {
+    const { uploadAttachment } = await import("./api");
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response("Unsupported", {
+          status: 415,
+          statusText: "Unsupported Media Type",
+        }),
+    ) as typeof fetch;
+    const file = new File([new Uint8Array(8)], "x.txt", {
+      type: "text/plain",
+    });
+    await expect(uploadAttachment(5, file)).rejects.toMatchObject({
+      name: "ApiError",
+      status: 415,
     });
   });
 });
