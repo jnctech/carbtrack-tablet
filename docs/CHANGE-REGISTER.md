@@ -31,7 +31,7 @@ multiple CRs land on the same date with similar slugs.
 - Stale-cache eviction when foods drop from API results.
 - Surfacing `useLiveQuery` errors (currently defaults to `[]`).
 
-**Status:** Staged (PR open, awaiting merge to `develop`)
+**Status:** Deployed (merged 2026-05-03 as `6ddf5eb`, PR #19)
 
 ## CR-260503-1-scaffold
 **Date:** 2026-05-03
