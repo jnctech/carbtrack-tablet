@@ -472,7 +472,8 @@ function IngredientPicker({
   const [pickingId, setPickingId] = useState<number | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
   const debounced = useDebouncedValue(query, 250);
-  const { results, isLoading } = useFoodSearch(debounced);
+  const { results, isLoading, error } = useFoodSearch(debounced);
+  const trimmed = debounced.trim();
 
   const handlePick = async (foodId: number) => {
     setPickError(null);
@@ -504,6 +505,17 @@ function IngredientPicker({
       {isLoading && results.length === 0 && (
         <p className="mt-2 text-xs text-muted-foreground">Searching…</p>
       )}
+      {!isLoading && error && results.length === 0 && (
+        <p className="mt-2 text-xs text-destructive" role="alert">
+          Search failed: {error.message}
+        </p>
+      )}
+      {!isLoading &&
+        !error &&
+        trimmed !== "" &&
+        results.length === 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">No matches.</p>
+        )}
       {pickError && (
         <p className="mt-2 text-xs text-destructive" role="alert">
           {pickError}
