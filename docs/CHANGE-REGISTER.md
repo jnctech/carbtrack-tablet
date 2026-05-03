@@ -3,6 +3,79 @@
 Date-based IDs only: `CR-YYMMDD-<branch-slug>`. Append a letter (`-a`, `-b`) if
 multiple CRs land on the same date with similar slugs.
 
+## CR-260503-4-phase4-attachments
+**Date:** 2026-05-03
+**Branch:** `feature/phase4-attachments`
+**Summary:** Phase 4 — recipe attachments (photo upload + inline gallery
+with caption editing, reorder, delete) on the recipe builder edit screen.
+- Schemas (`src/lib/schemas.ts`) — `AttachmentViewSchema` extended with
+  `recipe_id` + `created_at` (backend was already returning them; zod was
+  silently stripping). New `AttachmentPatchSchema`.
+- API helpers (`src/lib/api.ts`) — `uploadAttachment` (multipart
+  FormData), `patchAttachment`, `deleteAttachment`. `apiFetch` no longer
+  overrides `Content-Type` when the body is `FormData`, and wraps
+  `res.text()` so stream-read failures on a non-2xx don't lose the HTTP
+  status.
+- New `src/lib/attachments.ts` — single source of truth for
+  `ALLOWED_MIME` and the 15 MB cap, mirroring the carbtrack-au
+  allow-list. Pre-upload rejection helper so bad files never hit the
+  network.
+- `src/components/AttachmentGallery.tsx` — file-picker uploader
+  (sequential, in-batch counter for stable `sort_order`), 4-up tile
+  grid with lazy-loaded thumbs, debounced caption editing (separate
+  caption-error vs action-error slots so a successful reorder doesn't
+  swallow a failed caption save), up/down `sort_order` swap with
+  compensating rollback if the second PATCH fails, delete with
+  `globalThis.confirm` and an inline fallback when no dialog is
+  available. Tile action buttons sized for Fire HD finger taps
+  (`min-h-10`).
+- Mounted in `RecipeBuilder` edit mode only — uploads need a recipe id.
+- `vite.config.ts` — dev proxy gains `/attachments` route alongside
+  `/api` so thumb URLs resolve against the upstream during development.
+  Long-term decision recorded in `phase4-spec.md`: deployed tablet will
+  be same-origin via NPM (no CORS config on carbtrack-au).
+- Tests: **99 passing — 94.08% statements / 85.71% branches / 93.75%
+  functions / 94.83% lines**.
+- Pre-PR review trail (per `docs/internal/ai-review-workflow.md`):
+  - `/simplify` (3-agent reuse + quality + efficiency sweep) — extracted
+    `formatUploadError()` helper to remove a nested ternary, extracted
+    `newNonce()` for the `crypto.randomUUID`-with-fallback expression.
+  - `pr-review-toolkit:silent-failure-hunter` — surfaced 11 findings.
+    Acted on: sort-order swap rollback, caption/action error split,
+    confirm-fallback safety, file-input reset on early return, shared
+    `formatActionError`, `apiFetch` body-read try/catch. Deferred:
+    caption-debounce AbortController race (low impact, would need
+    `useMutation` rework), MIME extension sniffing (no real evidence
+    Silk reports empty `file.type` for HEIC), null-body FormData guard
+    (no caller passes null).
+  - `pr-review-toolkit:code-reviewer` — fixed multi-file `sort_order`
+    stale closure bug (in-batch counter), bumped tap targets, added
+    spec-required RecipeBuilder gallery mount/absence tests. Notes on
+    schema string tightening recorded as cosmetic.
+
+**Bundled deferred work attempt (Gap 4 — shared route-tree builder):**
+attempted to extract `buildRouteTree(rootRoute, components)` so
+`src/router.tsx` and `src/test/renderWithRouter.tsx` could share one
+source. TanStack Router's typed `Register` interface requires literal
+child route declarations to flow through to `createRouter`, and
+abstracting them through a generic builder erased the inference,
+breaking `<Link to="/recipes/$recipeId">`, `navigate({to, params})`,
+and `validateSearch` typing. Reverted; documented in
+`docs/internal/phase4-spec.md`. Gap 4 stays deferred unless TanStack
+ships a typed builder pattern.
+
+**Deferred for later phases:**
+- Foods stale-cache eviction (Phase 2 Gap 2) — still unrelated.
+- `useLiveQuery` error surfacing (Phase 2 Gap 3) — still unrelated.
+- Indexed cache lookup for foods (Phase 2 Gap 5).
+- Drag-reorder UX for the gallery (Phase 5 alongside the recipe
+  library).
+- Camera capture (`<input capture>`) and lightbox/full-screen viewer.
+- Long-press confirm fallback for Fire HD when `globalThis.confirm` is
+  blocked.
+
+**Status:** Staged
+
 ## CR-260503-3-phase3-recipe-builder
 **Date:** 2026-05-03
 **Branch:** `feature/phase3-recipe-builder`
