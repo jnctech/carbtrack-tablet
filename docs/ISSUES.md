@@ -3,6 +3,13 @@
 Date-based IDs only: `ISS-YYMMDD-<topic>`. Append a letter if multiple issues
 land on the same date with similar slugs.
 
+## In-flight
+
+> Active line of work + next-session prompt. Overwritten by session-end each session
+> so it survives beyond the 2-handoff window session-start reads. Recoverable here alone.
+
+_None recorded yet._
+
 ## Open
 
 ### ISS-260503-stale-cache-no-eviction
