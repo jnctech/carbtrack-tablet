@@ -55,3 +55,16 @@ PRs target `jnctech/carbtrack-tablet` branch `develop` — never upstream.
 * `docs/CHANGE-REGISTER.md` — CR-YYMMDD-slug entries
 * `docs/ISSUES.md` — ISS-YYMMDD-topic entries
 * `docs/decisions/` — ADRs (sequential ADR-NNN — see ADR-010 for why ADRs are the exception to date-based IDs)
+
+## oob inbox — check on session start
+This repo participates in the estate relay mailbox (a shared, git-controlled tree at `~/oob`). On session start, check for
+messages addressed to you:
+- `ls ~/oob/mailbox/to-carbtrack-tablet/` — your unread inbox (empty = clear).
+- Read any relay found, action it, then `git mv` it to `~/oob/mailbox/read/` and commit **by path** (never `git add -A`).
+- Ground in `~/oob/standards/DOCTRINE-oob-operating-concepts.md` and `~/oob/mailbox/README.md` before writing back.
+
+Your canonical slug is `carbtrack-tablet` — spell it verbatim (a mismatched `ls` path = a missed message). **You share a
+vantage card with the backend** (`~/oob/prompts/vantages/PROMPT-vantage-carbtrack.md` covers the family) **but NOT an
+inbox**: `to-carbtrack-au/` is the backend's and is not yours to read or action. The two repos also differ — `carbtrack-au`
+is PRIVATE with default branch `main`; this repo is PUBLIC with default branch `develop`. Never infer one's state from the
+other. Onboarded 2026-07-21 per `~/oob/registry/STANDARD-repo-agent-onboarding-2026-07-02.md`.
