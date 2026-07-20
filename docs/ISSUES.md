@@ -20,11 +20,11 @@ Done this session (no code touched — docs/git only):
 
 **Next session — pick up here:**
 
-1. **Confirm or correct the standards declaration.** It was written by the *carbtrack-au* seat, not by a tablet
-   session. Read it and fix anything wrong; it is GREY, not ratified.
-2. **`VITE_API_TOKEN` vs backend-no-auth (UNVERIFIED — trace this).** `CLAUDE.md` §3 declares the token, but
-   `carbtrack-au` has no auth on any endpoint (its ISS-004, still Open). Either the client sends a token that is
-   ignored, or the token is dead config. Nobody has traced the client code. Resolve before any auth design.
+1. **`ISS-260721-confirm-standards-declaration`** — the declaration was written by the *carbtrack-au* seat, not by
+   a tablet session. Read it and fix anything wrong; it is GREY, not ratified.
+2. **`ISS-260721-api-token-vs-no-auth`** — `CLAUDE.md` §3 declares the token, but `carbtrack-au` has no auth on any
+   endpoint (its ISS-004, still Open). UNVERIFIED; client code untraced. Resolve before any auth design.
+   Also open: **`ISS-260721-oob-vantage-card-render`** (oob-side render limitation, not actionable here).
 3. **Voice-input feature (new, operator ask 2026-07-21).** Goal: a non-technical family member asks a Google
    speaker *"carb total of 84g strawberries, 70g mango, 3 Jatz biscuits"* and hears the answer. Agreed shape is
    **Home Assistant as the voice front-end** (HA Assist ← Nabu Casa ← Google), calling `carbtrack-au` over LAN —
@@ -39,11 +39,42 @@ Done this session (no code touched — docs/git only):
      may be the only surviving path. Confirm against current Google docs before building.
    This repo owns the **only ADR practice in the family** (`docs/decisions/`, 10 ADRs) — `carbtrack-au` has none,
    so the cross-repo decision should probably be written as `ADR-011` here.
-4. **Backend deploy gate is open** and affects this feature's data: `carbtrack-au` `ISS-260616-snack-chart-prod-seed`
+4. **Backend deploy gate is open** and affects this feature's data — **cross-repo ID, tracked in `carbtrack-au`,
+   not here**: `carbtrack-au` → `ISS-260616-snack-chart-prod-seed`
    — the Snack & Meal chart import is merged but was never seeded to prod, so foods a voice query asks about may
    not exist in the deployed DB.
 
 ## Open
+
+### ISS-260721-confirm-standards-declaration
+**Severity:** Medium
+**Surfaced by:** Estate onboarding, 2026-07-21.
+**Symptom:** `~/oob/registry/standards-intake/STANDARDS-carbtrack-tablet-2026-07-21.md`
+was written by the **carbtrack-au seat**, not by a tablet session (oob `9556e9f`).
+It is GREY / not ratified. A tablet session should read it and confirm or correct
+— particularly §5 (quality gate) and §6 (docs), which were derived from reading
+`CLAUDE.md` rather than from an actual test/CI run.
+
+### ISS-260721-api-token-vs-no-auth
+**Severity:** Medium
+**Surfaced by:** Standards declaration cross-check, 2026-07-21.
+**Symptom:** `CLAUDE.md` §3 declares `VITE_API_TOKEN`, but `carbtrack-au` has **no
+auth on any endpoint** (its ISS-004, open since 2026-03-15). Either this client
+sends a token that is silently ignored, or it is dead config.
+**UNVERIFIED** — client code not traced. Trace `src/` for where the token is
+attached, then either remove it or record it as provisional pending backend auth.
+Mirrored as `ISS-260721-api-token-vs-no-auth` in `carbtrack-au`.
+
+### ISS-260721-oob-vantage-card-render
+**Severity:** Low
+**Surfaced by:** Estate onboarding render, 2026-07-21.
+**Symptom:** `~/oob/registry/ONBOARDING-COMPLETENESS.md` renders this repo's
+vantage-card cell 🔴 (2/4) because the join is per-slug and looks for
+`PROMPT-vantage-carbtrack-tablet.md`, but the family card
+`PROMPT-vantage-carbtrack.md` covers both repos. **Render limitation, not a
+missing artifact.** oob owns the fix (`decision_surface.onboarding_rows()`):
+follow a family/alias, or split the card per slug. Reported in the standards
+declaration §7. Not actionable here — close when oob decides.
 
 ### ISS-260503-stale-cache-no-eviction
 **Severity:** Low
